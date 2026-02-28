@@ -6,6 +6,25 @@ from werkzeug.security import generate_password_hash, check_password_hash
 
 api_bp = Blueprint('api', __name__)
 
+@api_bp.route('/health', methods=['GET'])
+def health_check():
+    """Health check endpoint for load balancers and monitoring."""
+    try:
+        # Check database connection
+        db.session.execute('SELECT 1')
+        return jsonify({
+            'status': 'healthy',
+            'database': 'connected',
+            'timestamp': datetime.utcnow().isoformat()
+        }), 200
+    except Exception as e:
+        return jsonify({
+            'status': 'unhealthy',
+            'database': str(e),
+            'timestamp': datetime.utcnow().isoformat()
+        }), 503
+
+
 @api_bp.route('/auth/login', methods=['POST'])
 def login():
     data = request.get_json()
