@@ -15,7 +15,7 @@ jobs:
     name: Say Hello
 
     #Type of machine to run on
-    runs-on: ubuntu-lastest
+    runs-on: ubuntu-latest
 
     #Steps to execute
     steps:
