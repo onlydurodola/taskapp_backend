@@ -1,0 +1,34 @@
+#Name of workflow
+name: Hello World Workflow -GA
+
+#When to run the workflow
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: #Allows for manual trigger
+
+#Jobs to run
+jobs:
+  #job ID (internal reference)
+  say-hello:
+    #Name that would be displayed Github UI
+    name: Say Hello
+
+    #Type of machine to run on
+    runs-on: ubuntu-lastest
+
+    #Steps to execute
+    steps:
+      - name: Print greetings
+        run: echo "Hello, DevOps Engineers!"
+        
+      - name: Show Date
+        run: date
+      
+      - name: Show Env
+        run: |
+          
+          echo "Runner OS: $RUNNER_OS"
+          echo "Repository: ${{ github.repository }}"
+          echo "Branch: ${{ github.ref }}"   
+
