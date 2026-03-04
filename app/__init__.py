@@ -7,7 +7,7 @@ from urllib.parse import quote_plus
 
 db = SQLAlchemy()
 migrate = Migrate()  
-
+#
 def create_app():
     app = Flask(__name__)
 
