@@ -4,7 +4,7 @@ import jwt
 import os
 from app.models import User
 from werkzeug.security import check_password_hash
-#
+
 SECRET_KEY = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
 
 def generate_token(user_id, username):
