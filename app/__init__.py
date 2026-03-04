@@ -1,13 +1,11 @@
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
-from flask_migrate import Migrate  
 import os
 from urllib.parse import quote_plus
 
 db = SQLAlchemy()
-migrate = Migrate()  
-#
+
 def create_app():
     app = Flask(__name__)
 
@@ -24,7 +22,6 @@ def create_app():
             f"postgresql://{db_user}:{encoded_password}@{db_host}:{db_port}/{db_name}"
         )
     else:
-        # Fallback for local development
         database_uri = 'postgresql://taskapp_user:taskapp_password@localhost:5432/taskapp'
 
     app.config['SQLALCHEMY_DATABASE_URI'] = database_uri
@@ -32,7 +29,6 @@ def create_app():
     app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
 
     db.init_app(app)
-    migrate.init_app(app, db)  
     CORS(app)
 
     from app.routes import api_bp
