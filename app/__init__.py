@@ -1,10 +1,12 @@
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
+from flask_migrate import Migrate  
 import os
 from urllib.parse import quote_plus
 
 db = SQLAlchemy()
+migrate = Migrate()  
 
 def create_app():
     app = Flask(__name__)
@@ -30,12 +32,10 @@ def create_app():
     app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
 
     db.init_app(app)
+    migrate.init_app(app, db)  
     CORS(app)
 
     from app.routes import api_bp
     app.register_blueprint(api_bp, url_prefix='/api')
-
-    # REMOVED: db.create_all() - Now handled by Alembic migrations
-    # Run: flask db upgrade to create tables
 
     return app

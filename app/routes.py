@@ -3,6 +3,8 @@ from app import db
 from app.models import Task, User
 from app.auth import token_required, login_user, generate_token
 from werkzeug.security import generate_password_hash, check_password_hash
+from datetime import datetime
+from sqlalchemy import text
 
 api_bp = Blueprint('api', __name__)
 
@@ -11,7 +13,7 @@ def health_check():
     """Health check endpoint for load balancers and monitoring."""
     try:
         # Check database connection
-        db.session.execute('SELECT 1')
+        db.session.execute(text('SELECT 1'))
         return jsonify({
             'status': 'healthy',
             'database': 'connected',
