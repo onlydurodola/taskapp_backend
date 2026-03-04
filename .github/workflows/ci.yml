@@ -160,16 +160,6 @@ jobs:
             htmlcov/
             coverage.xml
           retention-days: 7
-      
-      # Step 2.5: Fail if coverage below threshold (optional)
-      - name: Check coverage threshold
-        run: |
-          COVERAGE=$(grep -o 'percent="[0-9]*"' coverage.xml | head -1 | grep -o '[0-9]*')
-          echo "Coverage: $COVERAGE%"
-          if [ "$COVERAGE" -lt 50 ]; then
-            echo "::warning::Coverage below 50% ($COVERAGE%)"
-          fi
-        continue-on-error: true
 
   # ═══════════════════════════════════════════════════════════
   # JOB 3: BUILD ARTIFACT
@@ -178,68 +168,23 @@ jobs:
   build:
     name: Build Deployment Artifact
     runs-on: ubuntu-latest
-    needs: [quality, test]  # Both must pass
-    
-    outputs:
-      version: ${{ steps.version.outputs.value }}
-      artifact-name: ${{ steps.artifact.outputs.name }}
-    
+    needs: [quality, test]
+  
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0  # Full git history for versioning
-      
-      # Step 3.1: Generate version string
-      # Format: git-tag-or-sha-YYYYMMDD-HHMMSS
-      - name: Generate version
-        id: version
+    
+      - name: Create deployment package
         run: |
-          GIT_DESC=$(git describe --tags --always --dirty 2>/dev/null || git rev-parse --short HEAD)
-          TIMESTAMP=$(date +%Y%m%d-%H%M%S)
-          VERSION="${GIT_DESC}-${TIMESTAMP}"
-          echo "value=$VERSION" >> $GITHUB_OUTPUT
-          echo "Building version: $VERSION"
-      
-      # Step 3.2: Create deployment package
-      - name: Create artifact
-        run: |
-          # Create clean package directory
           mkdir -p package
-          
-          # Copy application code
-          cp -r app/ package/
-          cp -r migrations/ package/
-          cp requirements.txt package/
-          cp run.py package/
-          cp alembic.ini package/
-          
-          # Add version file for runtime visibility
-          echo "${{ steps.version.outputs.value }}" > package/VERSION
-          
-          # Create tarball
-          tar -czf backend-${{ steps.version.outputs.value }}.tar.gz -C package .
-          
-          # Verify contents
-          echo "Artifact contents:"
-          tar -tzf backend-${{ steps.version.outputs.value }}.tar.gz
-      
-      # Step 3.3: Set artifact name output
-      - name: Set artifact name
-        id: artifact
-        run: echo "name=backend-${{ steps.version.outputs.value }}" >> $GITHUB_OUTPUT
-      
-      # Step 3.4: Upload to GitHub artifact storage
+          cp -r app/ migrations/ requirements.txt run.py alembic.ini package/
+          tar -czf backend.tar.gz -C package .
+          echo "Artifact created:"
+          tar -tzf backend.tar.gz
+    
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: backend-${{ steps.version.outputs.value }}
-          path: backend-${{ steps.version.outputs.value }}.tar.gz
-          retention-days: 30  # Keep for 30 days for rollbacks
-      
-      # Step 3.5: Summary output
-      - name: Build summary
-        run: |
-          echo "## Build Complete :package:" >> $GITHUB_STEP_SUMMARY
-          echo "- Version: ${{ steps.version.outputs.value }}" >> $GITHUB_STEP_SUMMARY
-          echo "- Artifact: backend-${{ steps.version.outputs.value }}.tar.gz" >> $GITHUB_STEP_SUMMARY
+          name: backend-artifact
+          path: backend.tar.gz
+          retention-days: 7

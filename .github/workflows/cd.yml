@@ -6,9 +6,6 @@ on:
     branches: [main]
     types: [completed]
 
-env:
-  DEPLOY_DIR: /opt/taskapp/backend
-
 jobs:
   deploy:
     name: Deploy to Production
@@ -19,48 +16,46 @@ jobs:
       - name: Download artifact
         uses: actions/download-artifact@v4
         with:
+          name: backend-artifact      # Must match upload name in CI
           run-id: ${{ github.event.workflow_run.id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          name: backend-artifact
       
       - name: Setup SSH
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          echo "${{ secrets.SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
       
-      - name: Deploy and Migrate
+      - name: Deploy to server
         run: |
-          # Copy artifact to server
-          scp -i ~/.ssh/deploy_key backend-*.tar.gz \
-            ubuntu@${{ secrets.EC2_HOST }}:/tmp/deploy.tar.gz
+          scp -i ~/.ssh/deploy_key backend.tar.gz \
+            ubuntu@${{ secrets.EC2_HOST }}:/tmp/
           
-          # Execute deployment
           ssh -i ~/.ssh/deploy_key ubuntu@${{ secrets.EC2_HOST }} << 'EOF'
             set -e
             
-            # Backup current version
-            sudo cp -r ${{ env.DEPLOY_DIR }} ${{ env.DEPLOY_DIR }}.backup.$(date +%s) || true
+            cd /opt/taskapp/backend
+            
+            # Backup
+            sudo cp -r . ../backup.$(date +%s) || true
             
             # Extract new code
-            cd ${{ env.DEPLOY_DIR }}
-            sudo -u taskapp tar -xzf /tmp/deploy.tar.gz --strip-components=1
+            sudo -u taskapp tar -xzf /tmp/backend.tar.gz
             
-            # Install dependencies
-            sudo -u taskapp ${{ env.DEPLOY_DIR }}/venv/bin/pip install -r requirements.txt
+            # Install deps
+            sudo -u taskapp venv/bin/pip install -r requirements.txt
             
-            # Run migrations (THE KEY STEP)
-            cd ${{ env.DEPLOY_DIR }}
+            # Run migrations (KEY STEP FOR TEACHING)
             sudo -u taskapp \
               DATABASE_HOST="${{ secrets.DB_HOST }}" \
               DATABASE_PASSWORD="${{ secrets.DB_PASSWORD }}" \
-              ${{ env.DEPLOY_DIR }}/venv/bin/alembic upgrade head
+              venv/bin/alembic upgrade head
             
-            # Restart service
+            # Restart
             sudo systemctl restart taskapp-backend
             
-            # Verify
+            # Health check
             sleep 3
-            curl -f http://localhost:5000/api/health || exit 1
+            curl -f http://localhost:5000/api/health
           EOF
