@@ -1,0 +1,66 @@
+name: CD - Deploy to Production
+
+on:
+  workflow_run:
+    workflows: ["Backend CI"]
+    branches: [main]
+    types: [completed]
+
+env:
+  DEPLOY_DIR: /opt/taskapp/backend
+
+jobs:
+  deploy:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    if: github.event.workflow_run.conclusion == 'success'
+    
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          name: backend-artifact
+      
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+      
+      - name: Deploy and Migrate
+        run: |
+          # Copy artifact to server
+          scp -i ~/.ssh/deploy_key backend-*.tar.gz \
+            ubuntu@${{ secrets.EC2_HOST }}:/tmp/deploy.tar.gz
+          
+          # Execute deployment
+          ssh -i ~/.ssh/deploy_key ubuntu@${{ secrets.EC2_HOST }} << 'EOF'
+            set -e
+            
+            # Backup current version
+            sudo cp -r ${{ env.DEPLOY_DIR }} ${{ env.DEPLOY_DIR }}.backup.$(date +%s) || true
+            
+            # Extract new code
+            cd ${{ env.DEPLOY_DIR }}
+            sudo -u taskapp tar -xzf /tmp/deploy.tar.gz --strip-components=1
+            
+            # Install dependencies
+            sudo -u taskapp ${{ env.DEPLOY_DIR }}/venv/bin/pip install -r requirements.txt
+            
+            # Run migrations (THE KEY STEP)
+            cd ${{ env.DEPLOY_DIR }}
+            sudo -u taskapp \
+              DATABASE_HOST="${{ secrets.DB_HOST }}" \
+              DATABASE_PASSWORD="${{ secrets.DB_PASSWORD }}" \
+              ${{ env.DEPLOY_DIR }}/venv/bin/alembic upgrade head
+            
+            # Restart service
+            sudo systemctl restart taskapp-backend
+            
+            # Verify
+            sleep 3
+            curl -f http://localhost:5000/api/health || exit 1
+          EOF
